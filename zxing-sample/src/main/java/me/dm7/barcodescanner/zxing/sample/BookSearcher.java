@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -43,19 +44,24 @@ public class BookSearcher {
     private static final String ENDPOINT = "webservices.amazon.com";
 
 
+    private static final String restAPIUrl = "http://littlescanner.herokuapp.com";
+    //private static final String restAPIUrl = "http://172.16.0.32:3000"; //debug local server.
 
-    public static String Send(String sId, String sIdType) {
+    public static BookInfo Send(String sId, String sIdType) {
 
         /*
          * Set up the signed requests helper.
          */
         SignedRequestsHelper  helper;
+        BookInfo book = new BookInfo(sId, sIdType);
 
         try {
             helper = SignedRequestsHelper.getInstance(ENDPOINT, ACCESS_KEY_ID, SECRET_KEY);
         } catch (Exception e) {
             e.printStackTrace();
-            return "error when call signed request";
+            book.errorMessage = "error when call signed request";
+
+            return book;
         }
 
         String requestUrl = null;
@@ -83,6 +89,7 @@ public class BookSearcher {
 
         System.out.println("Signed URL: \"" + requestUrl + "\"");
 
+
         String resp = null;
         try {
             resp = sendGet(requestUrl);
@@ -97,12 +104,78 @@ public class BookSearcher {
         if(nodes == null || nodes.getLength()== 0){
             String errormsg = "Error happens in retrieving book info";
             System.out.println(errormsg);
-            return errormsg;
+            book.errorMessage = errormsg;
+            return book;
         }
         Element line = (Element) nodes.item(0);
-        System.out.println(": " + line.getFirstChild().getTextContent());
-        return line.getFirstChild().getTextContent();
+        //System.out.println(": " + line.getFirstChild().getTextContent());
+
+
+        book.title = line.getFirstChild().getTextContent();
+
+        NodeList imageNodes = doc.getElementsByTagName("MediumImage");
+        if(imageNodes != null && imageNodes.getLength() > 0){
+            Element temp = (Element) imageNodes.item(0);
+            NodeList urlNodes = temp.getElementsByTagName("URL");
+            if(urlNodes != null && urlNodes.getLength()>0){
+                Element urlEl = (Element) urlNodes.item(0);
+                book.imageUrl = urlEl.getFirstChild().getTextContent();
+            }
+        }
+
+
+        book.pageUrl = getNodeText(doc, "DetailPageURL");
+        book.ASIN = getNodeText(doc, "ASIN");
+        book.author = getNodeText(doc, "author");
+        book.binding = getNodeText(doc, "binding");
+
+        String jsonPayload = book.toJSONString();
+        System.out.println("payload is " + jsonPayload);
+        sendPostRequest(restAPIUrl+"/api/book", jsonPayload);
+
+        System.out.println(book);
+        return book;
     };
+
+    public static String sendPostRequest(String requestUrl, String payload) {
+        StringBuffer jsonString = new StringBuffer();
+        System.out.println(payload);
+        System.out.println(requestUrl);
+        try {
+            URL url = new URL(requestUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+            connection.setDoInput(true);
+            connection.setDoOutput(true);
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            OutputStreamWriter writer = new OutputStreamWriter(connection.getOutputStream(), "UTF-8");
+            writer.write(payload);
+            writer.close();
+            BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                jsonString.append(line);
+            }
+            br.close();
+            connection.disconnect();
+        } catch (Exception e) {
+            System.out.println("We got err sending post " + e.getMessage());
+            throw new RuntimeException(e.getMessage());
+        }
+        return jsonString.toString();
+    }
+
+    public static String  getNodeText(Document doc, String tagName){
+        NodeList nodes = doc.getElementsByTagName(tagName);
+        if(nodes != null && nodes.getLength() > 0){
+            Element temp = (Element) nodes.item(0);
+            return temp.getFirstChild().getTextContent();
+        }
+        return "";
+    }
 
     public  static String sendGet(String url) throws Exception {
 

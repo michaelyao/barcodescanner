@@ -8,6 +8,7 @@ dependencies {
     compile libraries.design_support
     implementation files('/Users/myao/dev/git/bookfinder/lib/commons-codec-1.11/commons-codec-1.11.jar')
     implementation files('/Users/myao/dev/git/bookfinder/lib/sax.jar')
+    implementation files('/Users/myao/dev/git/bookfinder/lib/json-simple-1.1.jar')
 }
 
 android {

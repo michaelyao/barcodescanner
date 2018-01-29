@@ -75,9 +75,9 @@ public class SimpleScannerActivity extends BaseScannerActivity implements ZXingS
         protected BookInfo doInBackground(BookInfo... books) {
             try {
                 BookInfo book = books[0];
-                book.title  = BookSearcher.Send(book.bookId, book.codeType );
+                BookInfo bookUodated  = BookSearcher.Send(book.bookId, book.codeType );
 
-                return book;
+                return bookUodated;
             } catch (Exception e) {
                 this.exception = e;
 
